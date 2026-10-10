@@ -58,7 +58,8 @@ set(SOURCE
   src/InputHandler.cpp
   src/Shared.cpp
   src/UIOHookWrapper.cpp
-  src/win32_key_util.cpp)
+  src/win32_key_util.cpp
+  extern/afv-native/src/afv/dto/StationTransceiver.cpp)
 
 add_library(trackaudio-afv SHARED
   ${SOURCE}
