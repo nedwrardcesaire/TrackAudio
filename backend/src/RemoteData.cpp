@@ -224,7 +224,7 @@ bool RemoteData::parseSlurper(const std::string& sluper_data)
             continue;
         }
 
-        if (res[3] == "pilot") {
+        if (res[2] == "pilot") {
             isPilot = true;
         }
 
