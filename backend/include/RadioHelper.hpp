@@ -90,6 +90,44 @@ public:
         return true;
     }
 
+    /**
+     * @brief For pilot sessions, place every radio's transceiver at the aircraft position.
+     * Does nothing for ATC/observer sessions.
+     */
+    static void UpdatePilotTransceivers()
+    {
+        if (!mClient || !mClient->IsVoiceConnected()) {
+            return;
+        }
+
+        double lat = 0.0;
+        double lon = 0.0;
+        double alt = 0.0;
+        std::string callsign;
+        {
+            std::lock_guard<std::mutex> sessionLock(UserSession::mtx);
+            if (!UserSession::isPilot) {
+                return;
+            }
+            lat = UserSession::lat;
+            lon = UserSession::lon;
+            alt = UserSession::altitudeM;
+            callsign = UserSession::callsign;
+        }
+
+        mClient->SetClientPosition(lat, lon, alt, alt);
+
+        for (const auto& state : mClient->getRadioState()) {
+            const auto frequency = state.first;
+            if (frequency == OBS_FREQUENCY) {
+                continue;
+            }
+            std::vector<afv_native::afv::dto::StationTransceiver> transceivers;
+            transceivers.emplace_back(callsign, callsign, lat, lon, alt, alt);
+            mClient->SetManualTransceivers(frequency, transceivers);
+        }
+    }
+
     static void setAllRadioVolumes()
     {
         if (!mClient) {

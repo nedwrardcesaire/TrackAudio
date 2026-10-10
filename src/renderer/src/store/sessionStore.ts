@@ -3,6 +3,7 @@ import { create } from 'zustand';
 interface sessionStore {
   callsign: string;
   isAtc: boolean;
+  isPilot: boolean;
   isNetworkConnected: boolean;
   isConnected: boolean;
   isConnecting: boolean;
@@ -15,6 +16,7 @@ interface sessionStore {
 
   setCallsign: (callsign: string) => void;
   setIsAtc: (isAtc: boolean) => void;
+  setIsPilot: (isPilot: boolean) => void;
   setIsConnected: (isConnected: boolean) => void;
   setIsConnecting: (isConnecting: boolean) => void;
   setIsConnectionDegraded: (isDegraded: boolean) => void;
@@ -30,6 +32,7 @@ interface sessionStore {
 const useSessionStore = create<sessionStore>((set) => ({
   callsign: '',
   isAtc: false,
+  isPilot: false,
   isConnected: false,
   isConnecting: false,
   isConnectionDegraded: false,
@@ -46,6 +49,9 @@ const useSessionStore = create<sessionStore>((set) => ({
   },
   setIsAtc: (isAtc) => {
     set({ isAtc });
+  },
+  setIsPilot: (isPilot) => {
+    set({ isPilot });
   },
   setIsConnected: (isConnected) => {
     set({ isConnected });

@@ -36,15 +36,17 @@ const WaitingForConnectionMessage = () => (
 /**
  * AddStationSection component for the station addition UI
  */
-const AddStationSection = () => (
+const AddStationSection = ({ isPilot }: { isPilot: boolean }) => (
   <div className="d-flex justify-content-center flex-column radio-text h-100 w-100">
     <div
       className="container d-flex flex-column justify-content-center h-100 align-items-center gap-4"
       style={{ paddingBottom: '0' }}
     >
-      <div className="w-50">
-        <AddStation />
-      </div>
+      {!isPilot && (
+        <div className="w-50">
+          <AddStation />
+        </div>
+      )}
       <div className="w-50">
         <AddFrequency />
       </div>
@@ -69,10 +71,11 @@ const RadioContainer: React.FC = () => {
     state.showingUnicomBar
   ]);
 
-  const [isConnected, isNetworkConnected, isAtc] = useSessionStore((state) => [
+  const [isConnected, isNetworkConnected, isAtc, isPilot] = useSessionStore((state) => [
     state.isConnected,
     state.isNetworkConnected,
-    state.isAtc
+    state.isAtc,
+    state.isPilot
   ]);
 
   const [showExpandedRxInfo] = useUtilStore((state) => [state.showExpandedRxInfo]);
@@ -122,7 +125,7 @@ const RadioContainer: React.FC = () => {
       <div className="d-flex flex-column hide-topbar sub-sub-structure">
         <div className="h-100 d-flex gap-3">
           <div className={`box-container ${showExpandedRxInfo ? 'radio-list-expanded' : 'w-100'}`}>
-            {uiState === 'add-station' && <AddStationSection />}
+            {uiState === 'add-station' && <AddStationSection isPilot={isPilot} />}
             {uiState === 'show-radios' && <RadioList radios={filteredRadios} />}
           </div>
 

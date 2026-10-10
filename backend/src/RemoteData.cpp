@@ -1,9 +1,83 @@
 #include "RemoteData.hpp"
 #include "Helpers.hpp"
+#include "RadioHelper.hpp"
 #include "Shared.hpp"
 #include <absl/strings/match.h>
+#include <cmath>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <plog/Log.h>
+
+namespace {
+constexpr double FEET_TO_METERS = 0.3048;
+constexpr int ALTITUDE_REFRESH_EVERY_N_TICKS = 4; // ~60s, the data feed is large
+constexpr double POSITION_EPSILON = 1e-5;
+}
+
+void RemoteData::updatePilotPosition(const std::string& cid, bool isPilotSession)
+{
+    if (!isPilotSession) {
+        pilotTickCount = 0;
+        pilotPositionApplied = false;
+        return;
+    }
+
+    if (pilotTickCount % ALTITUDE_REFRESH_EVERY_N_TICKS == 0) {
+        auto altitude = getPilotAltitudeM(cid);
+        if (altitude.has_value()) {
+            std::lock_guard<std::mutex> sessionLock(UserSession::mtx);
+            UserSession::altitudeM = *altitude;
+        }
+    }
+    pilotTickCount++;
+
+    double lat = 0.0;
+    double lon = 0.0;
+    double alt = 0.0;
+    {
+        std::lock_guard<std::mutex> sessionLock(UserSession::mtx);
+        lat = UserSession::lat;
+        lon = UserSession::lon;
+        alt = UserSession::altitudeM;
+    }
+
+    if (pilotPositionApplied && std::abs(lat - lastPilotLat) < POSITION_EPSILON
+        && std::abs(lon - lastPilotLon) < POSITION_EPSILON && std::abs(alt - lastPilotAlt) < 1.0) {
+        return;
+    }
+
+    lastPilotLat = lat;
+    lastPilotLon = lon;
+    lastPilotAlt = alt;
+    pilotPositionApplied = true;
+    RadioHelper::UpdatePilotTransceivers();
+}
+
+std::optional<double> RemoteData::getPilotAltitudeM(const std::string& cid)
+{
+    httplib::Client feedCli(VATSIM_DATA_FEED_BASE_URL);
+    feedCli.set_follow_location(true);
+    feedCli.set_connection_timeout(10);
+    feedCli.set_read_timeout(30);
+    auto res = feedCli.Get(VATSIM_DATA_FEED_ENDPOINT);
+    if (!res || res->status != httplib::StatusCode::OK_200) {
+        PLOG_WARNING << "Could not fetch the VATSIM data feed for pilot altitude";
+        return std::nullopt;
+    }
+
+    try {
+        const auto feed = nlohmann::json::parse(res->body);
+        const auto cidNumber = std::stoll(cid);
+        for (const auto& pilot : feed.at("pilots")) {
+            if (pilot.value("cid", 0LL) == cidNumber) {
+                return pilot.value("altitude", 0.0) * FEET_TO_METERS;
+            }
+        }
+    } catch (const std::exception& ex) {
+        PLOG_WARNING << "Could not parse the VATSIM data feed: " << ex.what();
+    }
+    return std::nullopt;
+}
 
 RemoteData::RemoteData()
     : timer(static_cast<long>(3 * 1000), static_cast<long>(TIMER_CALLBACK_INTERVAL_SEC * 1000))
@@ -32,6 +106,7 @@ void RemoteData::onTimer(Poco::Timer& /*timer*/)
         return;
     }
     try {
+        bool isPilotSession = false;
         auto slurperData = getSlurperData(cid);
         if (!slurperData.has_value()) {
             // The slurper could not be reached. getSlurperData handles the grace
@@ -44,9 +119,13 @@ void RemoteData::onTimer(Poco::Timer& /*timer*/)
         // Re-acquire session lock for parsing and updating session state.
         // An empty body is authoritative: it means the CID has no active
         // connection, so the session must be torn down.
-        std::lock_guard<std::mutex> sessionLock(UserSession::mtx);
-        auto isConnected = parseSlurper(*slurperData);
-        updateSessionStatus(previousCallsign, isConnected);
+        {
+            std::lock_guard<std::mutex> sessionLock(UserSession::mtx);
+            auto isConnected = parseSlurper(*slurperData);
+            updateSessionStatus(previousCallsign, isConnected);
+            isPilotSession = isConnected && UserSession::isPilot;
+        }
+        updatePilotPosition(cid, isPilotSession);
     } catch (const std::exception& ex) {
         RemoteDataStatus::isSlurperAvailable = false;
         enteredSlurperGracePeriod = false;
@@ -164,24 +243,31 @@ bool RemoteData::parseSlurper(const std::string& sluper_data)
     }
 
     auto it1 = connections.find(ConnectionType::z1);
-    auto it2 = connections.find(ConnectionType::op);
-    if (it1 == connections.end() && it2 == connections.end()) {
+    if (it1 == connections.end()) {
+        it1 = connections.find(ConnectionType::t0);
+    }
+    if (it1 == connections.end()) {
+        it1 = connections.find(ConnectionType::op);
+    }
+    if (it1 == connections.end()) {
         return false;
     }
 
-    if (it1 == connections.end()) {
-        it1 = it2;
+    const bool isPilotConnection = it1->first == ConnectionType::t0;
+    const bool canTransmit = it1->first != ConnectionType::op;
+
+    // Pilots have no controller frequency in the slurper data
+    int u334 = OBS_FREQUENCY;
+    if (!isPilotConnection) {
+        std::string res3 = it1->second.res3;
+        res3.erase(std::remove(res3.begin(), res3.end(), '.'), res3.end());
+        // NOLINTNEXTLINE Handled above in the try catch block
+        u334 = std::atoi(res3.c_str()) * 1000;
     }
-
-    std::string res3 = it1->second.res3;
-
-    res3.erase(std::remove(res3.begin(), res3.end(), '.'), res3.end());
-    // NOLINTNEXTLINE Handled above in the try catch block
-    int u334 = std::atoi(res3.c_str()) * 1000;
 
     auto cleanedFrequency = Helpers::CleanUpFrequency(u334);
     if (UserSession::callsign == it1->second.callsign && UserSession::frequency == cleanedFrequency
-        && UserSession::xy == (it1->first == ConnectionType::z1)
+        && UserSession::xy == canTransmit && UserSession::isPilot == isPilotConnection
         && UserSession::lat == std::stod(it1->second.lat)
         && UserSession::lon == std::stod(it1->second.lon)) {
         return true; // No changes
@@ -189,12 +275,15 @@ bool RemoteData::parseSlurper(const std::string& sluper_data)
     // Update the session info
     UserSession::callsign = it1->second.callsign;
     UserSession::frequency = cleanedFrequency;
-    UserSession::xy = (it1->first == ConnectionType::z1);
+    UserSession::xy = canTransmit;
+    UserSession::isPilot = isPilotConnection;
     UserSession::lat = std::stod(it1->second.lat);
     UserSession::lon = std::stod(it1->second.lon);
     PLOG_INFO << "Updating session data - Callsign: " << UserSession::callsign
               << ", Frequency: " << UserSession::frequency
-              << ", xx: " << static_cast<int>(UserSession::xy) << ", Latitude: " << UserSession::lat
+              << ", xx: " << static_cast<int>(UserSession::xy)
+              << ", pilot: " << static_cast<int>(UserSession::isPilot)
+              << ", Latitude: " << UserSession::lat
               << ", Longitude: " << UserSession::lon;
     return true;
 }
@@ -218,8 +307,9 @@ void RemoteData::updateSessionStatus(const std::string& previousCallsign, bool i
         // We are now connected to the network
         // We update the session state
         std::string callsign = UserSession::callsign;
-        std::string isatc = UserSession::xy ? "1" : "0";
-        std::string combinedString = isatc + "," + std::to_string(UserSession::frequency);
+        std::string isatc = (UserSession::xy && !UserSession::isPilot) ? "1" : "0";
+        std::string combinedString = isatc + "," + std::to_string(UserSession::frequency) + ","
+            + (UserSession::isPilot ? "1" : "0");
 
         NapiHelpers::callElectron("network-connected", callsign, combinedString);
 
@@ -238,6 +328,7 @@ void RemoteData::updateSessionStatus(const std::string& previousCallsign, bool i
 
         UserSession::isConnectedToTheNetwork = false;
         UserSession::xy = false;
+        UserSession::isPilot = false;
         UserSession::callsign = "";
 
         NapiHelpers::callElectron("network-disconnected");

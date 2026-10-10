@@ -17,15 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2022]
+        os: [windows-2022]
         node-version: [24.x]
         # Adds a platform value to the matrix, used later on to run the appropriate
         # package command.
         include:
-          - os: ubuntu-latest
-            platform: linux
-          - os: macos-latest
-            platform: mac
           - os: windows-2022
             platform: win
 

@@ -14,6 +14,8 @@
 #define TIMER_CALLBACK_INTERVAL_SEC 15
 #define SLURPER_BASE_URL "https://slurper.vatsim.net"
 #define SLURPER_DATA_ENDPOINT "/users/info/"
+#define VATSIM_DATA_FEED_BASE_URL "https://data.vatsim.net"
+#define VATSIM_DATA_FEED_ENDPOINT "/v3/vatsim-data.json"
 #define VERSION_CHECK_BASE_URL "https://raw.githubusercontent.com"
 #define VERSION_CHECK_ENDPOINT "/pierr3/TrackAudio/main/MANDATORY_VERSION"
 #define OBS_FREQUENCY 199998000 // 199.998
@@ -47,7 +49,12 @@ public:
     static int frequency;
     static double lat;
     static double lon;
+    // True when the user is allowed to transmit (ATC or pilot)
     static bool xy;
+    // True when the active network connection is a pilot connection
+    static bool isPilot;
+    // Pilot altitude in metres above mean sea level
+    static double altitudeM;
     static bool isConnectedToTheNetwork;
     static float currentMainVolume;
     static bool isDebug;

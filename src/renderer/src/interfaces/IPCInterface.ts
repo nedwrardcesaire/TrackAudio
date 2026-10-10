@@ -185,6 +185,7 @@ class IPCInterface {
       const isAtc = dataArr[0] === '1';
       const frequency = parseInt(dataArr[1]);
       sessionStoreState.setIsAtc(isAtc);
+      sessionStoreState.setIsPilot(dataArr[2] === '1');
       sessionStoreState.setFrequency(frequency);
     });
 
@@ -192,6 +193,7 @@ class IPCInterface {
       sessionStoreState.setNetworkConnected(false);
       sessionStoreState.setCallsign('');
       sessionStoreState.setIsAtc(false);
+      sessionStoreState.setIsPilot(false);
       sessionStoreState.setFrequency(199998000);
     });
 

@@ -60,6 +60,10 @@
 
 ## FAQ
 
+### Can I use this fork as a VATSIM pilot?
+
+Yes. When your CID is connected as a pilot, TrackAudio lets you add VHF frequencies manually (e.g. COM1/COM2), receive and transmit on them. The radio is placed at your aircraft position (latitude/longitude from the slurper, altitude from the VATSIM data feed, refreshed about once a minute).
+
 ### What's the difference between VectorAudio and TrackAudio?
 
 TrackAudio is simply the next iteration of VectorAudio, using a different set of technology. VectorAudio is no longer maintained and supported, so you should switch to TrackAudio as soon as possible.

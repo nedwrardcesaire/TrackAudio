@@ -85,7 +85,7 @@ const Radio: React.FC<RadioProps> = ({ radio }) => {
 
   const radiosToBeDeleted = useRadioState((state) => state.radiosSelected);
   const isEditMode = useUtilStore((state) => state.isEditMode);
-  const isATC = useSessionStore((state) => state.isAtc);
+  const isATC = useSessionStore((state) => state.isAtc || state.isPilot);
 
   // Initialize volume management hook
   const { localVolume, handleVolumeChange, handleVolumeWheel, isManualMode } = useVolumeManagement({

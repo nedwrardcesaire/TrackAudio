@@ -48,8 +48,18 @@ protected:
 
     static void updateSessionStatus(const std::string& previousCallsign, bool isConnected);
 
+    // Pilot sessions: refresh altitude and re-place transceivers when the aircraft moves
+    void updatePilotPosition(const std::string& cid, bool isPilotSession);
+    static std::optional<double> getPilotAltitudeM(const std::string& cid);
+
 private:
     Poco::Timer timer;
+
+    int pilotTickCount = 0;
+    bool pilotPositionApplied = false;
+    double lastPilotLat = 0.0;
+    double lastPilotLon = 0.0;
+    double lastPilotAlt = 0.0;
 
     bool pYx = false;
     bool userHasBeenNotifiedOfSlurperUnavailability = false;

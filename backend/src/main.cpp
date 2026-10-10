@@ -133,7 +133,8 @@ Napi::Boolean Connect(const Napi::CallbackInfo& info)
         std::lock_guard<std::mutex> sessionLock(UserSession::mtx);
         mClient->SetCallsign(UserSession::callsign);
         mClient->SetCredentials(UserSession::cid, password);
-        mClient->SetClientPosition(UserSession::lat, UserSession::lon, 150, 150);
+        const double altitude = UserSession::isPilot ? UserSession::altitudeM : 150;
+        mClient->SetClientPosition(UserSession::lat, UserSession::lon, altitude, altitude);
     }
     return Napi::Boolean::New(env, mClient->Connect());
 }
@@ -227,6 +228,7 @@ Napi::Boolean AddFrequency(const Napi::CallbackInfo& info)
     MainThreadShared::mApiServer->publishStationAdded(callsign, frequency);
 
     auto result = RadioHelper::SetRadioState(MainThreadShared::mApiServer, newState, callsign);
+    RadioHelper::UpdatePilotTransceivers();
     return Napi::Boolean::New(info.Env(), result);
 }
 

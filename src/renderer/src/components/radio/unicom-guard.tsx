@@ -16,7 +16,10 @@ const UnicomGuardBar = () => {
     state.removeRadio,
     state.setOutputVolume
   ]);
-  const [isConnected, isAtc] = useSessionStore((state) => [state.isConnected, state.isAtc]);
+  const [isConnected, isAtc] = useSessionStore((state) => [
+    state.isConnected,
+    state.isAtc || state.isPilot
+  ]);
 
   const isReducedSize = useMediaQuery({ maxWidth: '895px' });
 
